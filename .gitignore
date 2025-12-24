@@ -1,0 +1,11 @@
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.vcxproj.user
+*.obj
+*.exe
+*.dll
+bin/
+Debug/
+Release/
