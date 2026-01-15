@@ -34,6 +34,16 @@ void parse_schedule(const char* s) {
 }
 #endif
 
+volatile int done = 0;
+
+void progress(int total) {
+    while (!done) {
+        sleep(1);
+#pragma omp critical
+        printf("Progress: %.1f%%\n", 100.0 * done / total);
+    }
+}
+
 void insertion_sort_parallel_improved(double* a, int n) {
     // Если массив маленький, используем последовательную сортировку
     if (n < 1000) {
@@ -181,24 +191,30 @@ void insertion_sort(double* a, int n) {
 /* -------------------------------------------------- */
 /* Generate                                           */
 /* -------------------------------------------------- */
-void generate(double* M1, double* M2, int N, unsigned int seed) {
+unsigned int f(int it, int i) {
+    return 123456u + it * 100000u + i;
+}
+
+void generate(double* M1, double* M2, int N, int it) {
 
 #ifdef _OPENMP
-#pragma omp parallel for schedule(runtime) default(none) shared(M1, N, seed)
+#pragma omp parallel for schedule(runtime) default(none) shared(M1, N, it)
 #endif
     for (int i = 0; i < N; i++) {
-        unsigned int s = seed + i;
+        unsigned int s = f(it, i);
         M1[i] = 1.0 + ((double)rand_r(&s) / RAND_MAX) * (A - 1);
     }
 
 #ifdef _OPENMP
-#pragma omp parallel for schedule(runtime) default(none) shared(M2, N, seed)
+#pragma omp parallel for schedule(runtime) default(none) shared(M2, N, it)
 #endif
     for (int i = 0; i < N / 2; i++) {
-        unsigned int s = seed + i + 1000;
+        unsigned int s = f(it, i + N);
         M2[i] = A + ((double)rand_r(&s) / RAND_MAX) * (9 * A);
     }
 }
+
+
 
 /* -------------------------------------------------- */
 /* Map                                                */
@@ -292,10 +308,12 @@ int main(int argc, char** argv) {
     double* M2 = malloc(sizeof(double) * (N / 2));
     double* copy = malloc(sizeof(double) * (N / 2));
 
-    struct timeval T1, T2;
     double X = 0.0;
 
-    gettimeofday(&T1, NULL);
+    //#pragma omp single
+    //    progress(ITERATIONS);
+
+    double T1 = omp_get_wtime();
 
     for (int it = 0; it < ITERATIONS; it++) {
 #pragma omp parallel default(none) shared(M1, M2, copy, N, it) reduction(+:X)
@@ -303,17 +321,16 @@ int main(int argc, char** argv) {
         map(M1, M2, copy, N);
         merge(M1, M2, N);
 
-        //insertion_sort_parallel_improved(M2, N / 2);
+        insertion_sort_parallel_improved(M2, N / 2);
 #pragma omp single
-        insertion_sort(M2, N / 2);
+        //insertion_sort(M2, N / 2);
         X = reduce(M2, N);
+#pragma omp atomic
+        done++;
     }
 
-    gettimeofday(&T2, NULL);
-
-    double ms =
-        (T2.tv_sec - T1.tv_sec) * 1000.0 +
-        (T2.tv_usec - T1.tv_usec) / 1000.0;
+    double T2 = omp_get_wtime();
+    double ms = (T2 - T1) * 1000.0;
 
     /* Формат для автоматической обработки */
     printf("%d %d %.3f %.10f\n", N, threads, ms, X);

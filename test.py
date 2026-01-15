@@ -11,15 +11,13 @@ from collections import defaultdict
 # НАСТРОЙКИ
 # =========================================================
 
-N = 100_000            # N1 из задания
+NS = [100, 500, 1000, 5000, 10000, 50000, 100000]
 THREADS = [1, 2, 4, 6, 8]
 
 LABS = {
-    "LR1": "./lab1",
     "LR3": "./lab3",
+    "LR4": "./lab4",
 }
-
-SCHEDULES = ["static", "dynamic", "guided"]
 
 RESULTS_DIR = "plots"
 os.makedirs(RESULTS_DIR, exist_ok=True)
@@ -32,23 +30,18 @@ def run_cmd(cmd):
     out = subprocess.check_output(cmd, stderr=subprocess.STDOUT).decode().strip()
     parts = out.split()
 
-    if len(parts) == 3:        # LR1
-        _, time_ms, _ = parts
-        threads = 1
-    elif len(parts) == 4:      # LR3
-        _, threads, time_ms, _ = parts
-        threads = int(threads)
-    else:
+    if len(parts) != 4:
         raise RuntimeError("Unexpected output format")
 
-    return threads, float(time_ms)
+    _, threads, time_ms, _ = parts
+    return int(threads), float(time_ms)
 
 
 def save_plot(x, ys, labels, title, ylabel, filename):
     plt.figure()
     for y, label in zip(ys, labels):
         plt.plot(x, y, marker='o', label=label)
-    plt.xlabel("Threads")
+    plt.xlabel("Threads" if isinstance(x[0], int) else "N")
     plt.ylabel(ylabel)
     plt.title(title)
     plt.grid()
@@ -58,175 +51,162 @@ def save_plot(x, ys, labels, title, ylabel, filename):
 
 
 # =========================================================
-# 1. СРАВНЕНИЕ ЛР1 / ЛР3
+# 1. ЗАМЕР ВРЕМЕНИ
 # =========================================================
 
-times = defaultdict(dict)
+times = defaultdict(lambda: defaultdict(dict))
+# times[lab][N][threads] = time
 
-print("== Running LR1 / LR3 ==")
+print("== Running benchmarks ==")
 
 for lab, exe in LABS.items():
     if not os.path.exists(exe):
         print(f"Executable {exe} not found")
         sys.exit(1)
 
-    for t in THREADS:
-        if lab == "LR1":
-            cmd = [exe, str(N)]
-        else:
+    for N in NS:
+        for t in THREADS:
             cmd = [exe, str(N), str(t)]
-
-        threads, time_ms = run_cmd(cmd)
-        times[lab][threads] = time_ms
-        print(f"{lab}: threads={threads}, time={time_ms:.2f} ms")
-
-speedups = {
-    lab: {p: times[lab][1] / times[lab][p] for p in times[lab]}
-    for lab in times
-}
-
-save_plot(
-    THREADS,
-    [[speedups[lab].get(t, 1) for t in THREADS] for lab in LABS],
-    list(LABS.keys()),
-    "Parallel speedup comparison (LR1 vs LR3)",
-    "Speedup",
-    "speedup_lr1_lr3.png"
-)
+            threads, time_ms = run_cmd(cmd)
+            times[lab][N][threads] = time_ms
+            print(f"{lab}: N={N}, threads={threads}, time={time_ms:.2f} ms")
 
 # =========================================================
-# 2. SCHEDULE + CHUNK
+# 2. ГРАФИКИ ВРЕМЕНИ ОТ N
 # =========================================================
 
-schedule_results = defaultdict(lambda: defaultdict(dict))
-
-print("\n== Running schedule experiments ==")
-
-for sched in SCHEDULES:
-    for t in THREADS:
-        chunk_variants = {
-            "1": 1,
-            "<P": max(1, t // 2),
-            "=P": t,
-            ">P": t * 2
-        }
-
-        for cname, chunk in chunk_variants.items():
-            cmd = [
-                LABS["LR3"],
-                str(N),
-                str(t),
-                sched,
-                str(chunk)
-            ]
-            _, time_ms = run_cmd(cmd)
-            schedule_results[sched][cname][t] = time_ms
-            print(f"{sched}, chunk={chunk}, threads={t}, time={time_ms:.2f}")
-
-# =========================================================
-# 3. ГРАФИКИ УСКОРЕНИЯ
-# =========================================================
-
-for cname in ["1", "<P", "=P", ">P"]:
+for t in THREADS:
     ys = []
     labels = []
 
-    for sched in SCHEDULES:
-        t1 = schedule_results[sched][cname][1]
-        sp = [t1 / schedule_results[sched][cname][t] for t in THREADS]
+    for lab in LABS:
+        ys.append([times[lab][N][t] for N in NS])
+        labels.append(f"{lab}, threads={t}")
+
+    save_plot(
+        NS,
+        ys,
+        labels,
+        f"Execution time vs N (threads={t})",
+        "Time, ms",
+        f"time_vs_N_threads_{t}.png"
+    )
+
+# =========================================================
+# 3. УСКОРЕНИЕ (speedup)
+# =========================================================
+
+for N in NS:
+    ys = []
+    labels = []
+
+    for lab in LABS:
+        t1 = times[lab][N][1]
+        sp = [t1 / times[lab][N][p] for p in THREADS]
         ys.append(sp)
-        labels.append(sched)
+        labels.append(lab)
 
     save_plot(
         THREADS,
         ys,
         labels,
-        f"Speedup for different schedules (chunk {cname})",
+        f"Speedup vs Threads (N={N})",
         "Speedup",
-        f"speedup_schedule_chunk_{cname}.png"
+        f"speedup_N_{N}.png"
     )
 
 # =========================================================
 # 4. ЭФФЕКТИВНОСТЬ
 # =========================================================
 
-for sched in SCHEDULES:
+for N in NS:
     ys = []
     labels = []
 
-    for cname in ["1", "<P", "=P", ">P"]:
-        t1 = schedule_results[sched][cname][1]
-        sp = [t1 / schedule_results[sched][cname][t] for t in THREADS]
-        eff = [sp[i] / THREADS[i] for i in range(len(THREADS))]
+    for lab in LABS:
+        t1 = times[lab][N][1]
+        eff = [(t1 / times[lab][N][p]) / p for p in THREADS]
         ys.append(eff)
-        labels.append(f"chunk {cname}")
+        labels.append(lab)
 
     save_plot(
         THREADS,
         ys,
         labels,
-        f"Efficiency for schedule {sched}",
+        f"Efficiency vs Threads (N={N})",
         "Efficiency",
-        f"efficiency_{sched}.png"
+        f"efficiency_N_{N}.png"
     )
 
 # =========================================================
-# 5. ГРАФИК ЗАГРУЗКИ ЯДЕР ОТ ВРЕМЕНИ (ОБЯЗАТЕЛЬНО)
+# 5. ПРЯМОЕ СРАВНЕНИЕ LAB3 vs LAB4
 # =========================================================
 
-print("\n== CPU load profiling ==")
+for N in NS:
+    ratio = [
+        times["LR4"][N][p] / times["LR3"][N][p]
+        for p in THREADS
+    ]
 
+    save_plot(
+        THREADS,
+        [ratio],
+        ["LR4 / LR3"],
+        f"Relative performance (N={N})",
+        "Time ratio",
+        f"relative_perf_N_{N}.png"
+    )
+
+# =========================================================
+# 6. ЗАГРУЗКА CPU ПО ВРЕМЕНИ
+# =========================================================
+
+BEST_N = max(NS)
 BEST_THREADS = max(THREADS)
-BEST_SCHEDULE = "static"
-BEST_CHUNK = 1
 
-cmd = [
-    LABS["LR3"],
-    str(N),
-    str(BEST_THREADS),
-    BEST_SCHEDULE,
-    str(BEST_CHUNK)
-]
+def profile_cpu(lab):
+    cmd = [
+        LABS[lab],
+        str(BEST_N),
+        str(BEST_THREADS)
+    ]
 
-cpu_data = []
-timestamps = []
+    cpu_data = []
+    timestamps = []
 
-def monitor_cpu(proc, interval=0.1):
-    start = time.time()
-    while proc.poll() is None:
-        cpu = psutil.cpu_percent(interval=interval, percpu=True)
-        cpu_data.append(cpu)
-        timestamps.append(time.time() - start)
+    def monitor(proc, interval=0.1):
+        start = time.time()
+        while proc.poll() is None:
+            cpu = psutil.cpu_percent(interval=interval, percpu=True)
+            cpu_data.append(cpu)
+            timestamps.append(time.time() - start)
 
-proc = subprocess.Popen(cmd)
-monitor_thread = threading.Thread(target=monitor_cpu, args=(proc,))
-monitor_thread.start()
-proc.wait()
-monitor_thread.join()
+    proc = subprocess.Popen(cmd)
+    t = threading.Thread(target=monitor, args=(proc,))
+    t.start()
+    proc.wait()
+    t.join()
 
-plt.figure(figsize=(10, 6))
-num_cores = len(cpu_data[0])
+    plt.figure(figsize=(10, 6))
+    for core in range(len(cpu_data[0])):
+        plt.plot(
+            timestamps,
+            [sample[core] for sample in cpu_data],
+            label=f"CPU {core}"
+        )
 
-for core in range(num_cores):
-    plt.plot(
-        timestamps,
-        [sample[core] for sample in cpu_data],
-        label=f"CPU {core}"
-    )
+    plt.xlabel("Time, s")
+    plt.ylabel("CPU usage, %")
+    plt.title(f"CPU load over time ({lab})")
+    plt.grid()
+    plt.legend(fontsize="small")
+    plt.savefig(os.path.join(RESULTS_DIR, f"cpu_load_{lab}.png"))
+    plt.close()
 
-plt.xlabel("Time, seconds")
-plt.ylabel("CPU usage, %")
-plt.title(
-    f"CPU core utilization over time\n"
-    f"N={N}, threads={BEST_THREADS}, "
-    f"{BEST_SCHEDULE}, chunk={BEST_CHUNK}"
-)
-plt.grid()
-plt.legend(fontsize="small")
 
-plt.savefig(os.path.join(RESULTS_DIR, "cpu_load_over_time.png"))
-plt.close()
+print("\n== CPU profiling ==")
+profile_cpu("LR3")
+profile_cpu("LR4")
 
-print("CPU load graph saved: cpu_load_over_time.png")
 print("\nAll experiments finished.")
 print(f"Plots saved to ./{RESULTS_DIR}/")
