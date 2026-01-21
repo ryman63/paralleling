@@ -23,11 +23,38 @@ os.makedirs(RESULTS_DIR, exist_ok=True)
 # ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
 
 def run_cmd(cmd):
-    out = subprocess.check_output(cmd, stderr=subprocess.STDOUT).decode().strip()
-    parts = out.split()
 
-    if len(parts) != 4:
-        raise RuntimeError("Unexpected output format")
+    exe_base = os.path.splitext(os.path.basename(cmd[0]))[0]
+    auto_fname = f"auto_output_{exe_base}.txt"
+    
+    try:
+        if os.path.exists(auto_fname):
+            os.remove(auto_fname)
+    except OSError:
+        pass
+
+    proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+
+    content = None
+    if os.path.exists(auto_fname):
+        try:
+            with open(auto_fname, "r") as f:
+                content = f.read().strip()
+        except Exception:
+            content = proc.stdout.strip()
+    else:
+        content = proc.stdout.strip()
+
+    lines = [ln.strip() for ln in content.splitlines() if ln.strip()]
+    parts = None
+    for ln in reversed(lines):
+        toks = ln.split()
+        if len(toks) == 4:
+            parts = toks
+            break
+
+    if parts is None:
+        raise RuntimeError(f"Unexpected output format. Raw output:\n{content}")
 
     _, threads, time_ms, _ = parts
     return int(threads), float(time_ms)

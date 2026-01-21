@@ -3,6 +3,8 @@
 #include <math.h>
 #include <sys/time.h>
 #include <string.h>
+#include <unistd.h>
+
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -36,10 +38,14 @@ void parse_schedule(const char* s) {
 volatile int done = 0;
 
 void progress(int total) {
-    while (!done) {
-        sleep(1);
+    while (1) {
+        int current = done;
 #pragma omp critical
-        printf("Progress: %.1f%%\n", 100.0 * done / total);
+        printf("Progress: %.1f%%\n", 100.0 * current / total);
+        if (current >= total) {
+            break;
+        }
+        sleep(1);
     }
 }
 
@@ -80,8 +86,6 @@ void insertion_sort_parallel_improved(double* a, int n) {
 
         // Синхронизируем перед слиянием
 #pragma omp barrier
-
-// Выделяем временную память для слияния
 #pragma omp single
         {
             temp = (double*)malloc(n * sizeof(double));
@@ -193,44 +197,36 @@ unsigned int f(int it, int i) {
 
 void generate(double* M1, double* M2, int N, int it) {
 
-#ifdef _OPENMP
 #pragma omp parallel for schedule(runtime) default(none) shared(M1, N, it)
-#endif
     for (int i = 0; i < N; i++) {
         unsigned int s = f(it, i);
         M1[i] = 1.0 + ((double)rand_r(&s) / RAND_MAX) * (A - 1);
     }
 
-#ifdef _OPENMP
 #pragma omp parallel for schedule(runtime) default(none) shared(M2, N, it)
-#endif
     for (int i = 0; i < N / 2; i++) {
         unsigned int s = f(it, i + N);
         M2[i] = A + ((double)rand_r(&s) / RAND_MAX) * (9 * A);
     }
 }
 
-
-
 // Map
 void map(double* M1, double* M2, double* copy, int N) {
 
-#pragma omp for schedule(static)
+#pragma omp parallel for schedule(runtime) default(none) shared(M1, N)
     for (int i = 0; i < N; i++) {
         M1[i] = exp(sqrt(M1[i]));
     }
 
-    // зависимая часть — строго последовательная
-#pragma omp single
-    {
+#pragma omp parallel for schedule(runtime) default(none) shared(M2, copy, N)
         for (int i = 0; i < N / 2; i++)
             copy[i] = M2[i];
 
+#pragma omp parallel for schedule(runtime) default(none) shared(M2, copy, N)
         for (int i = 0; i < N / 2; i++) {
             double prev = (i == 0) ? 0.0 : copy[i - 1];
             M2[i] = fabs(tan(copy[i] + prev));
         }
-    }
 }
 
 // Merge
@@ -259,9 +255,7 @@ double reduce(double* M2, int N) {
     double X = 0.0;
     if (min != 0.0) {
 
-#ifdef _OPENMP
 #pragma omp parallel for schedule(runtime) default(none) shared(M2, N, min) reduction(+:X)
-#endif
         for (int i = 0; i < N / 2; i++) {
             int k = (int)(M2[i] / min);
             if (k % 2 == 0) {
@@ -273,9 +267,7 @@ double reduce(double* M2, int N) {
     return X;
 }
 
-/* -------------------------------------------------- */
-/* Main                                               */
-/* -------------------------------------------------- */
+// Main
 int main(int argc, char** argv) {
     if (argc < 3) {
         printf("Usage: %s N THREADS [schedule chunk]\n", argv[0]);
@@ -287,6 +279,7 @@ int main(int argc, char** argv) {
     omp_set_max_active_levels(2);
 #ifdef _OPENMP
     omp_set_num_threads(threads);
+    omp_set_schedule(omp_sched_static, 1);
 
     if (argc >= 5) {
         parse_schedule(argv[3]);
@@ -301,29 +294,48 @@ int main(int argc, char** argv) {
 
     double X = 0.0;
 
-#pragma omp single
-    progress(ITERATIONS);
+    double start_time = 0.0, end_time = 0.0;
 
-    double T1 = omp_get_wtime();
+#pragma omp parallel num_threads(2) default(shared)
+    {
+        int tid = 0;
+#ifdef _OPENMP
+        tid = omp_get_thread_num();
+#endif
+        if (tid == 0) {
+            progress(ITERATIONS);
+        } else {
 
-    for (int it = 0; it < ITERATIONS; it++) {
-        generate(M1, M2, N, it + 1);
-        map(M1, M2, copy, N);
-        merge(M1, M2, N);
+#ifdef _OPENMP
+            omp_set_num_threads(threads);
+#endif
+            start_time = omp_get_wtime();
+            for (int it = 0; it < ITERATIONS; it++) {
+                generate(M1, M2, N, it + 1);
+                map(M1, M2, copy, N);
+                merge(M1, M2, N);
 
-        insertion_sort_parallel_improved(M2, N / 2);
-#pragma omp single
-        //insertion_sort(M2, N / 2);
-        X = reduce(M2, N);
+                insertion_sort_parallel_improved(M2, N / 2);
+                X = reduce(M2, N);
 #pragma omp atomic
-        done++;
+                done++;
+            }
+            end_time = omp_get_wtime();
+        }
     }
 
-    double T2 = omp_get_wtime();
-    double ms = (T2 - T1) * 1000.0;
+    double ms = (end_time - start_time) * 1000.0;
 
-    /* Формат для автоматической обработки */
-    printf("%d %d %.3f %.10f\n", N, threads, ms, X);
+    {
+        const char *outfname = "auto_output_lab4.txt";
+        FILE *out = fopen(outfname, "w");
+        if (out) {
+            fprintf(out, "%d %d %.3f %.10f\n", N, threads, ms, X);
+            fclose(out);
+        } else {
+            fprintf(stderr, "Warning: cannot open %s for writing\n", outfname);
+        }
+    }
 
     free(M1);
     free(M2);

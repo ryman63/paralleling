@@ -34,45 +34,6 @@ void parse_schedule(const char* s) {
 }
 #endif
 
-
-
-//Sort
-
-void insertion_sort(double* a, int n) {
-    for (int i = 1; i < n; i++) {
-        double key = a[i];
-        int j = i - 1;
-        while (j >= 0 && a[j] > key) {
-            a[j + 1] = a[j];
-            j--;
-        }
-        a[j + 1] = key;
-    }
-}
-
-void merge_two_sorted(double* a, int left1, int right1,
-    double* b, int left2, int right2,
-    double* result, int result_start) {
-    int i = left1, j = left2, k = result_start;
-
-    while (i <= right1 && j <= right2) {
-        if (a[i] <= b[j]) {
-            result[k++] = a[i++];
-        }
-        else {
-            result[k++] = b[j++];
-        }
-    }
-
-    while (i <= right1) {
-        result[k++] = a[i++];
-    }
-
-    while (j <= right2) {
-        result[k++] = b[j++];
-    }
-}
-
 void insertion_sort_parallel_improved(double* a, int n) {
     if (n < 1000) {
         insertion_sort(a, n);
@@ -166,6 +127,45 @@ void insertion_sort_parallel_improved(double* a, int n) {
         }
     }
 }
+
+void merge_two_sorted(double* a, int left1, int right1,
+    double* b, int left2, int right2,
+    double* result, int result_start) {
+    int i = left1, j = left2, k = result_start;
+
+    while (i <= right1 && j <= right2) {
+        if (a[i] <= b[j]) {
+            result[k++] = a[i++];
+        }
+        else {
+            result[k++] = b[j++];
+        }
+    }
+
+    while (i <= right1) {
+        result[k++] = a[i++];
+    }
+
+    while (j <= right2) {
+        result[k++] = b[j++];
+    }
+}
+
+
+//Sort
+
+void insertion_sort(double* a, int n) {
+    for (int i = 1; i < n; i++) {
+        double key = a[i];
+        int j = i - 1;
+        while (j >= 0 && a[j] > key) {
+            a[j + 1] = a[j];
+            j--;
+        }
+        a[j + 1] = key;
+    }
+}
+
 
 //Generate
 
@@ -284,7 +284,16 @@ int main(int argc, char** argv) {
         (T2.tv_sec - T1.tv_sec) * 1000.0 +
         (T2.tv_usec - T1.tv_usec) / 1000.0;
 
-    printf("%d %d %.3f %.10f\n", N, threads, ms, X);
+    {
+        const char *outfname = "auto_output_lab3.txt";
+        FILE *out = fopen(outfname, "w");
+        if (out) {
+            fprintf(out, "%d %d %.3f %.10f\n", N, threads, ms, X);
+            fclose(out);
+        } else {
+            fprintf(stderr, "Warning: cannot open %s for writing\n", outfname);
+        }
+    }
 
     free(copy);
     free(M1);
