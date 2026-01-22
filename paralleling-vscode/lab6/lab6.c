@@ -12,8 +12,6 @@
 #define ITERATIONS 100
 #define A 504
 
-/* ================= SORT (pthread) ================= */
-
 void insertion_sort(double* a, int n) {
     for (int i = 1; i < n; i++) {
         double key = a[i];
@@ -55,8 +53,6 @@ void sort_pthread(double* a, int n, int threads) {
         pthread_join(th[t], NULL);
 }
 
-/* ================= DATA GENERATION ================= */
-
 static inline unsigned int make_seed(int it, int i) {
     return 123456u + it * 100000u + i;
 }
@@ -72,8 +68,6 @@ void generate(double* M1, double* M2, int N, int it) {
         M2[i] = A + ((double)rand_r(&s) / RAND_MAX) * (9 * A);
     }
 }
-
-/* ================= REDUCE ================= */
 
 double reduce(double* M2, int N) {
     double min = 0.0;
@@ -95,8 +89,6 @@ double reduce(double* M2, int N) {
     return X;
 }
 
-/* ================= PROGRESS ================= */
-
 volatile int done = 0;
 pthread_mutex_t print_mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -112,8 +104,6 @@ void* progress_thread(void* arg) {
     }
     return NULL;
 }
-
-/* ================= MAIN ================= */
 
 int main(int argc, char** argv) {
     if (argc < 3) {
