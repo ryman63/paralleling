@@ -9,12 +9,12 @@ from collections import defaultdict
 
 # НАСТРОЙКИ
 
-NS = [100, 500, 1000, 5000, 10000, 50000, 100000]
+NS = [100, 500, 1000, 5000, 10000, 50000]
 THREADS = [1, 2, 4, 8, 12]
 
 LABS = {
-    "LR4": "./lab4",
     "LR5": "./lab5",
+    "LR6": "./lab6",
 }
 
 RESULTS_DIR = "plots"
@@ -87,6 +87,7 @@ for lab, exe in LABS.items():
 
     for N in NS:
         for t in THREADS:
+            # Run default method (pthread) first
             cmd = [exe, str(N), str(t)]
             threads, time_ms = run_cmd(cmd)
             times[lab][N][threads] = time_ms
@@ -153,72 +154,22 @@ for N in NS:
         f"efficiency_N_{N}.png"
     )
 
-# ПРЯМОЕ СРАВНЕНИЕ LAB4 vs LAB5
+# ПРЯМОЕ СРАВНЕНИЕ LAB6 vs LAB5
 
 for N in NS:
     ratio = [
-        times["LR5"][N][p] / times["LR4"][N][p]
+        times["LR6"][N][p] / times["LR5"][N][p]
         for p in THREADS
     ]
 
     save_plot(
         THREADS,
         [ratio],
-        ["LR5 / LR4"],
+        ["LR6 / LR5"],
         f"Relative performance (N={N})",
         "Time ratio",
         f"relative_perf_N_{N}.png"
     )
-
-
-# ЗАГРУЗКА CPU ПО ВРЕМЕНИ
-
-BEST_N = max(NS)
-BEST_THREADS = max(THREADS)
-
-def profile_cpu(lab):
-    cmd = [
-        LABS[lab],
-        str(BEST_N),
-        str(BEST_THREADS)
-    ]
-
-    cpu_data = []
-    timestamps = []
-
-    def monitor(proc, interval=0.1):
-        start = time.time()
-        while proc.poll() is None:
-            cpu = psutil.cpu_percent(interval=interval, percpu=True)
-            cpu_data.append(cpu)
-            timestamps.append(time.time() - start)
-
-    proc = subprocess.Popen(cmd)
-    t = threading.Thread(target=monitor, args=(proc,))
-    t.start()
-    proc.wait()
-    t.join()
-
-    plt.figure(figsize=(10, 6))
-    for core in range(len(cpu_data[0])):
-        plt.plot(
-            timestamps,
-            [sample[core] for sample in cpu_data],
-            label=f"CPU {core}"
-        )
-
-    plt.xlabel("Time, s")
-    plt.ylabel("CPU usage, %")
-    plt.title(f"CPU load over time ({lab})")
-    plt.grid()
-    plt.legend(fontsize="small")
-    plt.savefig(os.path.join(RESULTS_DIR, f"cpu_load_{lab}.png"))
-    plt.close()
-
-
-print("\n== CPU profiling ==")
-profile_cpu("LR4")
-profile_cpu("LR5")
 
 print("\nAll experiments finished.")
 print(f"Plots saved to ./{RESULTS_DIR}/")
