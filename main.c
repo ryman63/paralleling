@@ -11,9 +11,9 @@
 #define ITERATIONS 100
 #define A 504
 
-/* -------------------------------------------------- */
-/* OpenMP schedule settings                           */
-/* -------------------------------------------------- */
+
+//OpenMP schedule settings
+
 #ifdef _OPENMP
 static omp_sched_t omp_sched = omp_sched_static;
 static int omp_chunk = 0;
@@ -34,112 +34,22 @@ void parse_schedule(const char* s) {
 }
 #endif
 
-void insertion_sort_parallel_improved(double* a, int n) {
-    // ≈сли массив маленький, используем последовательную сортировку
-    if (n < 1000) {
-        insertion_sort(a, n);
-        return;
-    }
 
-    int num_threads;
-    int* starts = NULL;
-    int* ends = NULL;
-    double* temp = NULL;
 
-#pragma omp parallel
-    {
-#pragma omp single
-        {
-            num_threads = omp_get_num_threads();
-            starts = (int*)malloc(num_threads * sizeof(int));
-            ends = (int*)malloc(num_threads * sizeof(int));
+//Sort
 
-            // ¬ычисл€ем границы дл€ каждого потока
-            int chunk_size = n / num_threads;
-            for (int i = 0; i < num_threads; i++) {
-                starts[i] = i * chunk_size;
-                ends[i] = (i == num_threads - 1) ? n : starts[i] + chunk_size;
-            }
+void insertion_sort(double* a, int n) {
+    for (int i = 1; i < n; i++) {
+        double key = a[i];
+        int j = i - 1;
+        while (j >= 0 && a[j] > key) {
+            a[j + 1] = a[j];
+            j--;
         }
-
-        //  аждый поток сортирует свою часть
-#pragma omp for schedule(static)
-        for (int i = 0; i < num_threads; i++) {
-            int size = ends[i] - starts[i];
-            insertion_sort(a + starts[i], size);
-        }
-
-        // —инхронизируем перед сли€нием
-#pragma omp barrier
-
-// ¬ыдел€ем временную пам€ть дл€ сли€ни€
-#pragma omp single
-        {
-            temp = (double*)malloc(n * sizeof(double));
-        }
-
-        // ѕараллельное сли€ние пар соседних частей
-        int step = 2;
-        while (step / 2 < num_threads) {
-#pragma omp for schedule(static)
-            for (int i = 0; i < num_threads; i += step) {
-                int left_part = i;
-                int right_part = i + step / 2;
-
-                // ≈сли правой части не существует, просто копируем левую
-                if (right_part >= num_threads) {
-                    for (int j = starts[left_part]; j < ends[left_part]; j++) {
-                        temp[j] = a[j];
-                    }
-                    continue;
-                }
-
-                int left_start = starts[left_part];
-                int left_end = ends[left_part] - 1;
-                int right_start = starts[right_part];
-                int right_end = (right_part + step / 2 < num_threads) ?
-                    ends[right_part] - 1 : ends[num_threads - 1] - 1;
-
-                // —ливаем две части
-                merge_two_sorted(a, left_start, left_end,
-                    a, right_start, right_end,
-                    temp, left_start);
-            }
-
-            //  опируем из временного массива обратно в основной
-#pragma omp barrier
-#pragma omp for schedule(static)
-            for (int i = 0; i < n; i++) {
-                a[i] = temp[i];
-            }
-
-            // ќбновл€ем границы частей дл€ следующего уровн€ сли€ни€
-#pragma omp barrier
-#pragma omp single
-            {
-                // ќбновл€ем границы частей
-                for (int i = 0; i < num_threads; i += step) {
-                    if (i + step / 2 < num_threads) {
-                        ends[i] = (i + step < num_threads) ?
-                            starts[i + step] : n;
-                    }
-                }
-            }
-
-            step *= 2;
-        }
-
-#pragma omp barrier
-#pragma omp single
-        {
-            free(starts);
-            free(ends);
-            free(temp);
-        }
+        a[j + 1] = key;
     }
 }
 
-// ‘ункци€ сли€ни€ двух отсортированных массивов
 void merge_two_sorted(double* a, int left1, int right1,
     double* b, int left2, int right2,
     double* result, int result_start) {
@@ -163,82 +73,147 @@ void merge_two_sorted(double* a, int left1, int right1,
     }
 }
 
-/* -------------------------------------------------- */
-/* Sort                                               */
-/* -------------------------------------------------- */
-void insertion_sort(double* a, int n) {
-    for (int i = 1; i < n; i++) {
-        double key = a[i];
-        int j = i - 1;
-        while (j >= 0 && a[j] > key) {
-            a[j + 1] = a[j];
-            j--;
+void insertion_sort_parallel_improved(double* a, int n) {
+    if (n < 1000) {
+        insertion_sort(a, n);
+        return;
+    }
+
+    int num_threads;
+    int* starts = NULL;
+    int* ends = NULL;
+    double* temp = NULL;
+
+#pragma omp parallel
+    {
+#pragma omp single
+        {
+            num_threads = omp_get_num_threads();
+            starts = (int*)malloc(num_threads * sizeof(int));
+            ends = (int*)malloc(num_threads * sizeof(int));
+
+            int chunk_size = n / num_threads;
+            for (int i = 0; i < num_threads; i++) {
+                starts[i] = i * chunk_size;
+                ends[i] = (i == num_threads - 1) ? n : starts[i] + chunk_size;
+            }
         }
-        a[j + 1] = key;
+
+#pragma omp for schedule(static)
+        for (int i = 0; i < num_threads; i++) {
+            int size = ends[i] - starts[i];
+            insertion_sort(a + starts[i], size);
+        }
+
+#pragma omp barrier
+
+#pragma omp single
+        {
+            temp = (double*)malloc(n * sizeof(double));
+        }
+
+        int step = 2;
+        while (step / 2 < num_threads) {
+#pragma omp for schedule(static)
+            for (int i = 0; i < num_threads; i += step) {
+                int left_part = i;
+                int right_part = i + step / 2;
+
+                if (right_part >= num_threads) {
+                    for (int j = starts[left_part]; j < ends[left_part]; j++) {
+                        temp[j] = a[j];
+                    }
+                    continue;
+                }
+
+                int left_start = starts[left_part];
+                int left_end = ends[left_part] - 1;
+                int right_start = starts[right_part];
+                int right_end = (right_part + step / 2 < num_threads) ?
+                    ends[right_part] - 1 : ends[num_threads - 1] - 1;
+
+                merge_two_sorted(a, left_start, left_end,
+                    a, right_start, right_end,
+                    temp, left_start);
+            }
+
+#pragma omp barrier
+#pragma omp for schedule(static)
+            for (int i = 0; i < n; i++) {
+                a[i] = temp[i];
+            }
+
+#pragma omp barrier
+#pragma omp single
+            {
+                for (int i = 0; i < num_threads; i += step) {
+                    if (i + step / 2 < num_threads) {
+                        ends[i] = (i + step < num_threads) ?
+                            starts[i + step] : n;
+                    }
+                }
+            }
+
+            step *= 2;
+        }
+
+#pragma omp barrier
+#pragma omp single
+        {
+            free(starts);
+            free(ends);
+            free(temp);
+        }
     }
 }
 
-/* -------------------------------------------------- */
-/* Generate                                           */
-/* -------------------------------------------------- */
+//Generate
+
 void generate(double* M1, double* M2, int N, unsigned int seed) {
 
-#ifdef _OPENMP
 #pragma omp parallel for schedule(runtime) default(none) shared(M1, N, seed)
-#endif
     for (int i = 0; i < N; i++) {
         unsigned int s = seed + i;
         M1[i] = 1.0 + ((double)rand_r(&s) / RAND_MAX) * (A - 1);
     }
 
-#ifdef _OPENMP
 #pragma omp parallel for schedule(runtime) default(none) shared(M2, N, seed)
-#endif
     for (int i = 0; i < N / 2; i++) {
         unsigned int s = seed + i + 1000;
         M2[i] = A + ((double)rand_r(&s) / RAND_MAX) * (9 * A);
     }
 }
 
-/* -------------------------------------------------- */
-/* Map                                                */
-/* -------------------------------------------------- */
+//Map
 void map(double* M1, double* M2, double* copy, int N) {
 
-#pragma omp for schedule(static)
+#pragma omp parallel for schedule(runtime) default(none) shared(M1, N)
     for (int i = 0; i < N; i++) {
         M1[i] = exp(sqrt(M1[i]));
     }
 
-    /* зависима€ часть Ч строго последовательна€ */
-#pragma omp single
-    {
+
+#pragma omp parallel for schedule(runtime) default(none) shared(M2, copy, N)
         for (int i = 0; i < N / 2; i++)
             copy[i] = M2[i];
 
+#pragma omp parallel for schedule(runtime) default(none) shared(M2, copy, N)
         for (int i = 0; i < N / 2; i++) {
             double prev = (i == 0) ? 0.0 : copy[i - 1];
             M2[i] = fabs(tan(copy[i] + prev));
         }
-    }
 }
 
-/* -------------------------------------------------- */
-/* Merge                                              */
-/* -------------------------------------------------- */
+//Merge
 void merge(double* M1, double* M2, int N) {
 
-#ifdef _OPENMP
 #pragma omp parallel for schedule(runtime) default(none) shared(M1, M2, N)
-#endif
     for (int i = 0; i < N / 2; i++) {
         M2[i] = fmin(M1[i], M2[i]);
     }
 }
 
-/* -------------------------------------------------- */
-/* Reduce                                             */
-/* -------------------------------------------------- */
+//Reduce
 double reduce(double* M2, int N) {
     double min = 0.0;
 
@@ -252,9 +227,7 @@ double reduce(double* M2, int N) {
     double X = 0.0;
     if (min != 0.0) {
 
-#ifdef _OPENMP
 #pragma omp parallel for schedule(runtime) default(none) shared(M2, N, min) reduction(+:X)
-#endif
         for (int i = 0; i < N / 2; i++) {
             int k = (int)(M2[i] / min);
             if (k % 2 == 0) {
@@ -266,9 +239,7 @@ double reduce(double* M2, int N) {
     return X;
 }
 
-/* -------------------------------------------------- */
-/* Main                                               */
-/* -------------------------------------------------- */
+//Main 
 int main(int argc, char** argv) {
     if (argc < 3) {
         printf("Usage: %s N THREADS [schedule chunk]\n", argv[0]);
@@ -298,13 +269,11 @@ int main(int argc, char** argv) {
     gettimeofday(&T1, NULL);
 
     for (int it = 0; it < ITERATIONS; it++) {
-#pragma omp parallel default(none) shared(M1, M2, copy, N, it) reduction(+:X)
         generate(M1, M2, N, it + 1);
         map(M1, M2, copy, N);
         merge(M1, M2, N);
 
         //insertion_sort_parallel_improved(M2, N / 2);
-#pragma omp single
         insertion_sort(M2, N / 2);
         X = reduce(M2, N);
     }
@@ -315,9 +284,9 @@ int main(int argc, char** argv) {
         (T2.tv_sec - T1.tv_sec) * 1000.0 +
         (T2.tv_usec - T1.tv_usec) / 1000.0;
 
-    /* ‘ормат дл€ автоматической обработки */
     printf("%d %d %.3f %.10f\n", N, threads, ms, X);
 
+    free(copy);
     free(M1);
     free(M2);
     return 0;

@@ -7,11 +7,9 @@ import psutil
 import matplotlib.pyplot as plt
 from collections import defaultdict
 
-# =========================================================
 # НАСТРОЙКИ
-# =========================================================
 
-N = 100_000            # N1 из задания
+N = 100_000
 THREADS = [1, 2, 4, 6, 8]
 
 LABS = {
@@ -24,9 +22,7 @@ SCHEDULES = ["static", "dynamic", "guided"]
 RESULTS_DIR = "plots"
 os.makedirs(RESULTS_DIR, exist_ok=True)
 
-# =========================================================
 # ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
-# =========================================================
 
 def run_cmd(cmd):
     out = subprocess.check_output(cmd, stderr=subprocess.STDOUT).decode().strip()
@@ -57,9 +53,7 @@ def save_plot(x, ys, labels, title, ylabel, filename):
     plt.close()
 
 
-# =========================================================
-# 1. СРАВНЕНИЕ ЛР1 / ЛР3
-# =========================================================
+# СРАВНЕНИЕ ЛР1 / ЛР3
 
 times = defaultdict(dict)
 
@@ -94,9 +88,7 @@ save_plot(
     "speedup_lr1_lr3.png"
 )
 
-# =========================================================
-# 2. SCHEDULE + CHUNK
-# =========================================================
+# SCHEDULE + CHUNK
 
 schedule_results = defaultdict(lambda: defaultdict(dict))
 
@@ -123,9 +115,7 @@ for sched in SCHEDULES:
             schedule_results[sched][cname][t] = time_ms
             print(f"{sched}, chunk={chunk}, threads={t}, time={time_ms:.2f}")
 
-# =========================================================
-# 3. ГРАФИКИ УСКОРЕНИЯ
-# =========================================================
+# ГРАФИКИ УСКОРЕНИЯ
 
 for cname in ["1", "<P", "=P", ">P"]:
     ys = []
@@ -146,9 +136,7 @@ for cname in ["1", "<P", "=P", ">P"]:
         f"speedup_schedule_chunk_{cname}.png"
     )
 
-# =========================================================
-# 4. ЭФФЕКТИВНОСТЬ
-# =========================================================
+# ЭФФЕКТИВНОСТЬ
 
 for sched in SCHEDULES:
     ys = []
@@ -170,9 +158,7 @@ for sched in SCHEDULES:
         f"efficiency_{sched}.png"
     )
 
-# =========================================================
-# 5. ГРАФИК ЗАГРУЗКИ ЯДЕР ОТ ВРЕМЕНИ (ОБЯЗАТЕЛЬНО)
-# =========================================================
+# ГРАФИК ЗАГРУЗКИ ЯДЕР ОТ ВРЕМЕНИ
 
 print("\n== CPU load profiling ==")
 
