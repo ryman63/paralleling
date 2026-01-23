@@ -10,7 +10,7 @@ from collections import defaultdict
 # НАСТРОЙКИ
 
 N_VALUES = [100, 500, 1_000, 5_000, 10_000, 50_000, 100_000]
-THREADS = [1, 2, 4, 6, 8]
+THREADS = [1, 2, 4, 8, 12]
 
 LABS = {
     "LR1": "./lab1",
