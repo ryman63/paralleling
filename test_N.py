@@ -13,8 +13,8 @@ NS = [100, 500, 1000, 5000, 10000, 50000, 100000]
 THREADS = [1, 2, 4, 8, 12]
 
 LABS = {
-    "LR3": "./lab3",
     "LR4": "./lab4",
+    "LR5": "./lab5",
 }
 
 RESULTS_DIR = "plots"
@@ -153,22 +153,23 @@ for N in NS:
         f"efficiency_N_{N}.png"
     )
 
-# ПРЯМОЕ СРАВНЕНИЕ LAB3 vs LAB4
+# ПРЯМОЕ СРАВНЕНИЕ LAB4 vs LAB5
 
 for N in NS:
     ratio = [
-        times["LR4"][N][p] / times["LR3"][N][p]
+        times["LR5"][N][p] / times["LR4"][N][p]
         for p in THREADS
     ]
 
     save_plot(
         THREADS,
         [ratio],
-        ["LR4 / LR3"],
+        ["LR5 / LR4"],
         f"Relative performance (N={N})",
         "Time ratio",
         f"relative_perf_N_{N}.png"
     )
+
 
 # ЗАГРУЗКА CPU ПО ВРЕМЕНИ
 
@@ -216,8 +217,8 @@ def profile_cpu(lab):
 
 
 print("\n== CPU profiling ==")
-profile_cpu("LR3")
 profile_cpu("LR4")
+profile_cpu("LR5")
 
 print("\nAll experiments finished.")
 print(f"Plots saved to ./{RESULTS_DIR}/")
