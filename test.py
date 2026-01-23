@@ -7,12 +7,10 @@ import psutil
 import matplotlib.pyplot as plt
 from collections import defaultdict
 
-# =========================================================
 # НАСТРОЙКИ
-# =========================================================
 
 NS = [100, 500, 1000, 5000, 10000, 50000, 100000]
-THREADS = [1, 2, 4, 6, 8]
+THREADS = [1, 2, 4, 8, 12]
 
 LABS = {
     "LR3": "./lab3",
@@ -22,16 +20,41 @@ LABS = {
 RESULTS_DIR = "plots"
 os.makedirs(RESULTS_DIR, exist_ok=True)
 
-# =========================================================
 # ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
-# =========================================================
 
 def run_cmd(cmd):
-    out = subprocess.check_output(cmd, stderr=subprocess.STDOUT).decode().strip()
-    parts = out.split()
 
-    if len(parts) != 4:
-        raise RuntimeError("Unexpected output format")
+    exe_base = os.path.splitext(os.path.basename(cmd[0]))[0]
+    auto_fname = f"auto_output_{exe_base}.txt"
+    
+    try:
+        if os.path.exists(auto_fname):
+            os.remove(auto_fname)
+    except OSError:
+        pass
+
+    proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+
+    content = None
+    if os.path.exists(auto_fname):
+        try:
+            with open(auto_fname, "r") as f:
+                content = f.read().strip()
+        except Exception:
+            content = proc.stdout.strip()
+    else:
+        content = proc.stdout.strip()
+
+    lines = [ln.strip() for ln in content.splitlines() if ln.strip()]
+    parts = None
+    for ln in reversed(lines):
+        toks = ln.split()
+        if len(toks) == 4:
+            parts = toks
+            break
+
+    if parts is None:
+        raise RuntimeError(f"Unexpected output format. Raw output:\n{content}")
 
     _, threads, time_ms, _ = parts
     return int(threads), float(time_ms)
@@ -50,9 +73,7 @@ def save_plot(x, ys, labels, title, ylabel, filename):
     plt.close()
 
 
-# =========================================================
-# 1. ЗАМЕР ВРЕМЕНИ
-# =========================================================
+# ЗАМЕР ВРЕМЕНИ
 
 times = defaultdict(lambda: defaultdict(dict))
 # times[lab][N][threads] = time
@@ -71,9 +92,7 @@ for lab, exe in LABS.items():
             times[lab][N][threads] = time_ms
             print(f"{lab}: N={N}, threads={threads}, time={time_ms:.2f} ms")
 
-# =========================================================
-# 2. ГРАФИКИ ВРЕМЕНИ ОТ N
-# =========================================================
+# ГРАФИКИ ВРЕМЕНИ ОТ N
 
 for t in THREADS:
     ys = []
@@ -92,9 +111,7 @@ for t in THREADS:
         f"time_vs_N_threads_{t}.png"
     )
 
-# =========================================================
-# 3. УСКОРЕНИЕ (speedup)
-# =========================================================
+# УСКОРЕНИЕ
 
 for N in NS:
     ys = []
@@ -115,9 +132,7 @@ for N in NS:
         f"speedup_N_{N}.png"
     )
 
-# =========================================================
-# 4. ЭФФЕКТИВНОСТЬ
-# =========================================================
+# ЭФФЕКТИВНОСТЬ
 
 for N in NS:
     ys = []
@@ -138,9 +153,7 @@ for N in NS:
         f"efficiency_N_{N}.png"
     )
 
-# =========================================================
-# 5. ПРЯМОЕ СРАВНЕНИЕ LAB3 vs LAB4
-# =========================================================
+# ПРЯМОЕ СРАВНЕНИЕ LAB3 vs LAB4
 
 for N in NS:
     ratio = [
@@ -157,9 +170,7 @@ for N in NS:
         f"relative_perf_N_{N}.png"
     )
 
-# =========================================================
-# 6. ЗАГРУЗКА CPU ПО ВРЕМЕНИ
-# =========================================================
+# ЗАГРУЗКА CPU ПО ВРЕМЕНИ
 
 BEST_N = max(NS)
 BEST_THREADS = max(THREADS)
