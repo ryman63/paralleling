@@ -26,12 +26,6 @@ def run_cmd(cmd):
 
     exe_base = os.path.splitext(os.path.basename(cmd[0]))[0]
     auto_fname = f"auto_output_{exe_base}.txt"
-    
-    try:
-        if os.path.exists(auto_fname):
-            os.remove(auto_fname)
-    except OSError:
-        pass
 
     proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
 

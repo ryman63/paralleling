@@ -168,7 +168,6 @@ void* progress_thread_fn(void* arg) {
         if (current >= total) {
             break;
         }
-        sleep(1);
     }
     return NULL;
 }
@@ -233,7 +232,7 @@ int main(int argc, char** argv) {
 
     {
         const char *outfname = "auto_output_lab5.txt";
-        FILE *out = fopen(outfname, "w");
+        FILE *out = fopen(outfname, "a");
         if (out) {
             fprintf(out, "%d %d %.3f %.10f\n", N, threads, ms, X);
             fclose(out);
