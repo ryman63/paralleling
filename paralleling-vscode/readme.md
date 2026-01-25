@@ -85,7 +85,7 @@ gcc <source.c> -O3 -o <executable>
 **Сборка:**
 
 ```
-gcc <source.c> -O3 -fopenmp -o <executable>
+gcc <source.c> -O3 -fopenmp -o <executable> -lm
 ```
 
 ---

@@ -103,7 +103,9 @@ void insertion_sort_parallel_improved(double* a, int n) {
     {
 #pragma omp single
         {
+#ifdef _OPENMP
             num_threads = omp_get_num_threads();
+#endif
             starts = (int*)malloc(num_threads * sizeof(int));
             ends = (int*)malloc(num_threads * sizeof(int));
 
@@ -235,9 +237,7 @@ void map(double* M1, double* M2, double* copy, int N) {
 
 void merge(double* M1, double* M2, int N) {
 
-#ifdef _OPENMP
 #pragma omp parallel for schedule(runtime) default(none) shared(M1, M2, N)
-#endif
     for (int i = 0; i < N / 2; i++) {
         M2[i] = fmin(M1[i], M2[i]);
     }
@@ -278,8 +278,8 @@ int main(int argc, char** argv) {
 
     int N = atoi(argv[1]);
     int threads = atoi(argv[2]);
+    #ifdef _OPENMP
     omp_set_max_active_levels(2);
-#ifdef _OPENMP
     omp_set_num_threads(threads);
     omp_set_schedule(omp_sched_static, 1);
 
@@ -298,33 +298,50 @@ int main(int argc, char** argv) {
 
     double start_time = 0.0, end_time = 0.0;
 
-#pragma omp parallel num_threads(2) default(shared)
+#ifdef _OPENMP
+    start_time = omp_get_wtime();
+#else
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    start_time = tv.tv_sec + tv.tv_usec * 1e-6;
+#endif
+
+#ifdef _OPENMP
+#pragma omp parallel sections num_threads(2) default(shared)
+{
+#pragma omp section
     {
-        int tid = 0;
-#ifdef _OPENMP
-        tid = omp_get_thread_num();
-#endif
-        if (tid == 0) {
-            progress(ITERATIONS);
-        } else {
-
-#ifdef _OPENMP
-            omp_set_num_threads(threads);
-#endif
-            start_time = omp_get_wtime();
-            for (int it = 0; it < ITERATIONS; it++) {
-                generate(M1, M2, N, it + 1);
-                map(M1, M2, copy, N);
-                merge(M1, M2, N);
-
-                insertion_sort_parallel_improved(M2, N / 2);
-                X = reduce(M2, N);
-#pragma omp atomic
-                done++;
-            }
-            end_time = omp_get_wtime();
-        }
+        progress(ITERATIONS);
     }
+#pragma omp section
+    {
+        for (int it = 0; it < ITERATIONS; it++) {
+            generate(M1, M2, N, it + 1);
+            map(M1, M2, copy, N);
+            merge(M1, M2, N);
+            insertion_sort_parallel_improved(M2, N / 2);
+            X = reduce(M2, N);
+#pragma omp atomic
+            done++;
+        }
+    }       
+}
+#else
+    for (int it = 0; it < ITERATIONS; it++) {
+        generate(M1, M2, N, it + 1);
+        map(M1, M2, copy, N);
+        merge(M1, M2, N);
+        insertion_sort_parallel_improved(M2, N / 2);
+        X = reduce(M2, N);
+    }
+#endif
+
+#ifdef _OPENMP
+    end_time = omp_get_wtime();
+#else
+    gettimeofday(&tv, NULL);
+    end_time = tv.tv_sec + tv.tv_usec * 1e-6;
+#endif
 
     double ms = (end_time - start_time) * 1000.0;
 

@@ -5,6 +5,7 @@
 #include <string.h>
 #include <pthread.h>
 #include <unistd.h>
+#include <stdatomic.h>
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -84,21 +85,22 @@ void sort_pthread(double* a, int n, int threads) {
     free(tmp);
 }
 
-static inline unsigned int make_seed(int it, int i) {
+// Generate
+unsigned int f(int it, int i) {
     return 123456u + it * 100000u + i;
 }
 
 void generate(double* M1, double* M2, int N, int it) {
 
-#pragma omp parallel for
+#pragma omp parallel for schedule(runtime) default(none) shared(M1, N, it)
     for (int i = 0; i < N; i++) {
-        unsigned int s = make_seed(it, i);
+        unsigned int s = f(it, i);
         M1[i] = 1.0 + ((double)rand_r(&s) / RAND_MAX) * (A - 1);
     }
 
-#pragma omp parallel for
+#pragma omp parallel for schedule(runtime) default(none) shared(M2, N, it)
     for (int i = 0; i < N / 2; i++) {
-        unsigned int s = make_seed(it, i + N);
+        unsigned int s = f(it, i + N);
         M2[i] = A + ((double)rand_r(&s) / RAND_MAX) * (9 * A);
     }
 }
@@ -151,15 +153,14 @@ double reduce(double* M2, int N) {
     return X;
 }
 
-volatile int done = 0;
-
+atomic_int done = 0;
 
 pthread_mutex_t print_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 void* progress_thread_fn(void* arg) {
     int total = *(int*)arg;
     while (1) {
-        int current = done;
+        int current = atomic_load(&done);
         
         pthread_mutex_lock(&print_mutex);
         printf("Progress: %.1f%%\n", 100.0 * (double)current / (double)total);
@@ -170,17 +171,6 @@ void* progress_thread_fn(void* arg) {
         sleep(1);
     }
     return NULL;
-}
-
-void progress(int total) {
-    pthread_t th;
-    int *parg = malloc(sizeof(int));
-    if (!parg) return;
-    *parg = total;
-    pthread_create(&th, NULL, progress_thread_fn, parg);
-    /* wait for progress thread to finish */
-    pthread_join(th, NULL);
-    free(parg);
 }
 
 int main(int argc, char** argv) {
@@ -203,35 +193,41 @@ int main(int argc, char** argv) {
 
     double X = 0.0;
 
-     double start_time = 0.0, end_time = 0.0;
-
-  #pragma omp parallel num_threads(2) default(shared)
-    {
-        int tid = 0;
-#ifdef _OPENMP
-        tid = omp_get_thread_num();
-#endif
-        if (tid == 0) {
-            progress(ITERATIONS);
-        } else {
+    double start_time = 0.0, end_time = 0.0;
 
 #ifdef _OPENMP
-            omp_set_num_threads(threads);
+    omp_set_num_threads(threads);
+    start_time = omp_get_wtime();
+#else
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    start_time = tv.tv_sec + tv.tv_usec * 1e-6;
 #endif
-            start_time = omp_get_wtime();
-            for (int it = 0; it < ITERATIONS; it++) {
-                generate(M1, M2, N, it + 1);
-                map(M1, M2, copy, N);
-                merge(M1, M2, N);
 
-                sort_pthread(M2, N / 2, threads);
-                X = reduce(M2, N);
-#pragma omp atomic
-                done++;
-            }
-            end_time = omp_get_wtime();
-        }
+    pthread_t progress_th;
+    int *parg = malloc(sizeof(int));
+    *parg = ITERATIONS;
+
+    pthread_create(&progress_th, NULL, progress_thread_fn, parg);
+
+    for (int it = 0; it < ITERATIONS; it++) {
+        generate(M1, M2, N, it + 1);
+        map(M1, M2, copy, N);
+        merge(M1, M2, N);
+        sort_pthread(M2, N / 2, threads);
+        X = reduce(M2, N);
+
+        atomic_fetch_add(&done, 1);
     }
+
+    pthread_join(progress_th, NULL);
+
+#ifdef _OPENMP
+    end_time = omp_get_wtime();
+#else
+    gettimeofday(&tv, NULL);
+    end_time = tv.tv_sec + tv.tv_usec * 1e-6;
+#endif
 
     double ms = (end_time - start_time) * 1000.0;
 
@@ -246,6 +242,7 @@ int main(int argc, char** argv) {
         }
     }
 
+    free(parg);
     free(M1);
     free(M2);
     free(copy);

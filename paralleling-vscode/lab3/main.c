@@ -88,7 +88,10 @@ void insertion_sort_parallel_improved(double* a, int n) {
     {
 #pragma omp single
         {
+            
+#ifdef _OPENMP
             num_threads = omp_get_num_threads();
+#endif
             starts = (int*)malloc(num_threads * sizeof(int));
             ends = (int*)malloc(num_threads * sizeof(int));
 
@@ -274,7 +277,7 @@ int main(int argc, char** argv) {
         merge(M1, M2, N);
 
         //insertion_sort_parallel_improved(M2, N / 2);
-        insertion_sort(M2, N / 2);
+        //insertion_sort(M2, N / 2);
         X = reduce(M2, N);
     }
 
