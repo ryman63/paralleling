@@ -1,0 +1,142 @@
+== Running benchmarks ==
+LR5: N=100, threads=1, time=3.29 ms
+LR5: N=100, threads=2, time=13.34 ms
+LR5: N=100, threads=4, time=28.80 ms
+LR5: N=100, threads=8, time=101.69 ms
+LR5: N=100, threads=12, time=193.21 ms
+LR5: N=500, threads=1, time=5.71 ms
+LR5: N=500, threads=2, time=16.13 ms
+LR5: N=500, threads=4, time=31.85 ms
+LR5: N=500, threads=8, time=108.01 ms
+LR5: N=500, threads=12, time=217.33 ms
+LR5: N=1000, threads=1, time=9.29 ms
+LR5: N=1000, threads=2, time=20.19 ms
+LR5: N=1000, threads=4, time=34.74 ms
+LR5: N=1000, threads=8, time=111.54 ms
+LR5: N=1000, threads=12, time=218.54 ms
+LR5: N=5000, threads=1, time=97.76 ms
+LR5: N=5000, threads=2, time=65.11 ms
+LR5: N=5000, threads=4, time=58.12 ms
+LR5: N=5000, threads=8, time=120.50 ms
+LR5: N=5000, threads=12, time=220.16 ms
+LR5: N=10000, threads=1, time=268.57 ms
+LR5: N=10000, threads=2, time=151.62 ms
+LR5: N=10000, threads=4, time=104.51 ms
+LR5: N=10000, threads=8, time=144.57 ms
+LR5: N=10000, threads=12, time=259.70 ms
+LR5: N=50000, threads=1, time=4989.40 ms
+LR5: N=50000, threads=2, time=1777.37 ms
+LR5: N=50000, threads=4, time=697.03 ms
+LR5: N=50000, threads=8, time=480.03 ms
+LR5: N=50000, threads=12, time=462.18 ms
+LR6: N=100, threads=1, time=18.34 ms
+LR6: N=100, threads=2, time=15.89 ms
+LR6: N=100, threads=4, time=20.89 ms
+LR6: N=100, threads=8, time=34.12 ms
+LR6: N=100, threads=12, time=35.20 ms
+LR6: N=500, threads=1, time=18.50 ms
+LR6: N=500, threads=2, time=21.18 ms
+LR6: N=500, threads=4, time=20.85 ms
+LR6: N=500, threads=8, time=28.84 ms
+LR6: N=500, threads=12, time=38.98 ms
+LR6: N=1000, threads=1, time=21.06 ms
+LR6: N=1000, threads=2, time=25.47 ms
+LR6: N=1000, threads=4, time=26.29 ms
+LR6: N=1000, threads=8, time=31.94 ms
+LR6: N=1000, threads=12, time=39.50 ms
+LR6: N=5000, threads=1, time=111.26 ms
+LR6: N=5000, threads=2, time=47.89 ms
+LR6: N=5000, threads=4, time=35.68 ms
+LR6: N=5000, threads=8, time=36.87 ms
+LR6: N=5000, threads=12, time=43.79 ms
+LR6: N=10000, threads=1, time=379.40 ms
+LR6: N=10000, threads=2, time=130.14 ms
+LR6: N=10000, threads=4, time=56.60 ms
+LR6: N=10000, threads=8, time=56.08 ms
+LR6: N=10000, threads=12, time=53.33 ms
+LR6: N=50000, threads=1, time=7126.76 ms
+LR6: N=50000, threads=2, time=2006.40 ms
+LR6: N=50000, threads=4, time=632.22 ms
+LR6: N=50000, threads=8, time=380.70 ms
+LR6: N=50000, threads=12, time=289.24 ms
+
+== Saved X values ==
+
+LR5:
+  N=100:
+    threads=1: X = 9.6394906164
+    threads=2: X = 9.6394906164
+    threads=4: X = 9.6394906164
+    threads=8: X = 9.6394906164
+    threads=12: X = 9.6394906164
+  N=500:
+    threads=1: X = 54.1976167866
+    threads=2: X = 54.1976167866
+    threads=4: X = 54.1976167866
+    threads=8: X = 54.1976167866
+    threads=12: X = 54.1976167866
+  N=1000:
+    threads=1: X = 93.3153489764
+    threads=2: X = 93.3153489764
+    threads=4: X = 93.3153489764
+    threads=8: X = 93.3153489764
+    threads=12: X = 93.3153489764
+  N=5000:
+    threads=1: X = 500.1198306426
+    threads=2: X = 500.1198306426
+    threads=4: X = 500.1198306426
+    threads=8: X = 500.1198306426
+    threads=12: X = 500.1198306426
+  N=10000:
+    threads=1: X = 1053.4798650233
+    threads=2: X = 1053.4798650233
+    threads=4: X = 1053.4798650233
+    threads=8: X = 1053.4798650233
+    threads=12: X = 1053.4798650233
+  N=50000:
+    threads=1: X = 5145.7735014899
+    threads=2: X = 5145.7735014899
+    threads=4: X = 5145.7735014899
+    threads=8: X = 5145.7735014899
+    threads=12: X = 5145.7735014899
+
+LR6:
+  N=100:
+    threads=1: X = 9.6394906164
+    threads=2: X = 9.6394906164
+    threads=4: X = 9.6394906164
+    threads=8: X = 9.6394906164
+    threads=12: X = 9.6394906164
+  N=500:
+    threads=1: X = 54.1976167866
+    threads=2: X = 54.1976167866
+    threads=4: X = 54.1976167866
+    threads=8: X = 54.1976167866
+    threads=12: X = 54.1976167866
+  N=1000:
+    threads=1: X = 93.3153489764
+    threads=2: X = 93.3153489764
+    threads=4: X = 93.3153489764
+    threads=8: X = 93.3153489764
+    threads=12: X = 93.3153489764
+  N=5000:
+    threads=1: X = 500.1198306426
+    threads=2: X = 500.1198306426
+    threads=4: X = 500.1198306426
+    threads=8: X = 500.1198306426
+    threads=12: X = 500.1198306426
+  N=10000:
+    threads=1: X = 1053.4798650233
+    threads=2: X = 1053.4798650233
+    threads=4: X = 1053.4798650233
+    threads=8: X = 1053.4798650233
+    threads=12: X = 1053.4798650233
+  N=50000:
+    threads=1: X = 5145.7735014899
+    threads=2: X = 5145.7735014899
+    threads=4: X = 5145.7735014899
+    threads=8: X = 5145.7735014899
+    threads=12: X = 5145.7735014899
+
+All experiments finished.
+Plots saved to ./plots/

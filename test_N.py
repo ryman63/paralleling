@@ -26,12 +26,6 @@ def run_cmd(cmd):
 
     exe_base = os.path.splitext(os.path.basename(cmd[0]))[0]
     auto_fname = f"auto_output_{exe_base}.txt"
-    
-    try:
-        if os.path.exists(auto_fname):
-            os.remove(auto_fname)
-    except OSError:
-        pass
 
     proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
 
@@ -56,8 +50,8 @@ def run_cmd(cmd):
     if parts is None:
         raise RuntimeError(f"Unexpected output format. Raw output:\n{content}")
 
-    _, threads, time_ms, _ = parts
-    return int(threads), float(time_ms)
+    _, threads, time_ms, x = parts
+    return int(threads), float(time_ms), float(x)
 
 
 def save_plot(x, ys, labels, title, ylabel, filename):
@@ -76,6 +70,7 @@ def save_plot(x, ys, labels, title, ylabel, filename):
 # ЗАМЕР ВРЕМЕНИ
 
 times = defaultdict(lambda: defaultdict(dict))
+x_values = defaultdict(lambda: defaultdict(dict))
 # times[lab][N][threads] = time
 
 print("== Running benchmarks ==")
@@ -89,9 +84,22 @@ for lab, exe in LABS.items():
         for t in THREADS:
             # Run default method (pthread) first
             cmd = [exe, str(N), str(t)]
-            threads, time_ms = run_cmd(cmd)
+            threads, time_ms, x = run_cmd(cmd)
             times[lab][N][threads] = time_ms
+            x_values[lab][N][threads] = x
             print(f"{lab}: N={N}, threads={threads}, time={time_ms:.2f} ms")
+
+# ВЫВОДИМ СОХРАНЕННЫЕ ЗНАЧЕНИЯ X
+print("\n== Saved X values ==")
+for lab in LABS:
+    print(f"\n{lab}:")
+    for N in NS:
+        print(f"  N={N}:")
+        for t in THREADS:
+            if t in x_values[lab][N]:
+                print(f"    threads={t}: X = {x_values[lab][N][t]}")
+            else:
+                print(f"    threads={t}: No data")
 
 # ГРАФИКИ ВРЕМЕНИ ОТ N
 

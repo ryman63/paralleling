@@ -6,6 +6,7 @@
 #include <math.h>
 #include <pthread.h>
 #include <unistd.h>
+#include <string.h>
 #include <omp.h>
 
 #define ITERATIONS 100
@@ -23,6 +24,18 @@ void insertion_sort(double* a, int n) {
         }
         a[j + 1] = key;
     }
+}
+
+void merge_two_sorted(double* a, int l1, int r1,
+    double* b, int l2, int r2,
+    double* res, int start) {
+    int i = l1, j = l2, k = start;
+
+    while (i <= r1 && j <= r2)
+        res[k++] = (a[i] <= b[j]) ? a[i++] : b[j++];
+
+    while (i <= r1) res[k++] = a[i++];
+    while (j <= r2) res[k++] = b[j++];
 }
 
 typedef struct {
@@ -52,6 +65,24 @@ void sort_pthread(double* a, int n, int threads) {
 
     for (int t = 0; t < threads; t++)
         pthread_join(th[t], NULL);
+
+    /* последовательное слияние */
+    double* tmp = malloc(sizeof(double) * n);
+    int size = args[0].end;
+
+    memcpy(tmp, a, sizeof(double) * size);
+
+    for (int t = 1; t < threads; t++) {
+        merge_two_sorted(
+            tmp, 0, size - 1,
+            a, args[t].start, args[t].end - 1,
+            a, 0
+        );
+        size += args[t].end - args[t].start;
+        memcpy(tmp, a, sizeof(double) * size);
+    }
+
+    free(tmp);
 }
 
 /* ================= DATA ================= */
@@ -105,7 +136,6 @@ void* progress_thread(void* arg) {
         pthread_mutex_unlock(&print_mutex);
 
         if (done >= total) break;
-        sleep(1);
     }
     return NULL;
 }
@@ -123,6 +153,7 @@ int main(int argc, char** argv) {
 
     double* M1 = malloc(sizeof(double) * N);
     double* M2 = malloc(sizeof(double) * (N / 2));
+    double* copy = malloc(sizeof(double) * (N / 2));
 
     /* ===== OpenCL init ===== */
 
@@ -133,17 +164,24 @@ int main(int argc, char** argv) {
     cl_command_queue queue;
     cl_program program;
     cl_kernel kernel;
+    cl_uint num_platforms;
 
-    err = clGetPlatformIDs(1, &platform, NULL);
-    if (err != CL_SUCCESS) {
-        printf("clGetPlatformIDs error %d\n", err);
-        return 1;
-    }
-
-    err = clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, 1, &device, NULL);
-    if (err != CL_SUCCESS) {
-        printf("clGetDeviceIDs error %d\n", err);
-        return 1;
+    err = clGetPlatformIDs(0, NULL, &num_platforms);
+    if (err == CL_SUCCESS && num_platforms > 0) {
+        printf("OpenCL detected (%d platforms)\n", num_platforms);
+        
+        // Получаем первую платформу
+        err = clGetPlatformIDs(1, &platform, NULL);
+        if (err != CL_SUCCESS) {
+            printf("clGetPlatformIDs error %d\n", err);
+        }
+        
+        // Получаем устройство
+        err = clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, 1, &device, NULL);
+        // Получаем информацию об устройстве
+        char device_name[128];
+        clGetDeviceInfo(device, CL_DEVICE_NAME, sizeof(device_name), device_name, NULL);
+        printf("Using OpenCL device: %s\n", device_name);
     }
 
     context = clCreateContext(NULL, 1, &device, NULL, NULL, &err);
@@ -193,17 +231,19 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    kernel = clCreateKernel(program, "map_merge", &err);
-    if (err != CL_SUCCESS) {
-        printf("clCreateKernel error %d\n", err);
-        return 1;
-    }
+    // Создаем kernel'ы
+    cl_kernel kernel1 = clCreateKernel(program, "compute_M1", &err);
+    cl_kernel kernel2 = clCreateKernel(program, "compute_M2", &err);
+    cl_kernel kernel3 = clCreateKernel(program, "compute_M2_final", &err);
+    cl_kernel kernel4 = clCreateKernel(program, "merge", &err);
 
     /* ===== Buffers ===== */
 
     cl_mem d_M1 = clCreateBuffer(context, CL_MEM_READ_ONLY,
         sizeof(double) * N, NULL, NULL);
     cl_mem d_M2 = clCreateBuffer(context, CL_MEM_READ_WRITE,
+        sizeof(double) * (N / 2), NULL, NULL);
+    cl_mem d_Copy = clCreateBuffer(context, CL_MEM_READ_WRITE,
         sizeof(double) * (N / 2), NULL, NULL);
 
     /* ===== Progress thread ===== */
@@ -218,22 +258,44 @@ int main(int argc, char** argv) {
     for (int it = 0; it < ITERATIONS; it++) {
         generate(M1, M2, N, it + 1);
 
+            // Запись данных
         clEnqueueWriteBuffer(queue, d_M1, CL_TRUE, 0,
             sizeof(double) * N, M1, 0, NULL, NULL);
         clEnqueueWriteBuffer(queue, d_M2, CL_TRUE, 0,
             sizeof(double) * (N / 2), M2, 0, NULL, NULL);
+        clEnqueueWriteBuffer(queue, d_Copy, CL_TRUE, 0,
+            sizeof(double) * (N / 2), copy, 0, NULL, NULL);
 
-        clSetKernelArg(kernel, 0, sizeof(cl_mem), &d_M1);
-        clSetKernelArg(kernel, 1, sizeof(cl_mem), &d_M2);
-        clSetKernelArg(kernel, 2, sizeof(int), &N);
-
-        size_t global = N / 2;
-        clEnqueueNDRangeKernel(queue, kernel, 1,
-            NULL, &global, NULL, 0, NULL, NULL);
+        // Kernel 1: compute_M1
+        clSetKernelArg(kernel1, 0, sizeof(cl_mem), &d_M1);
+        clSetKernelArg(kernel1, 1, sizeof(int), &N);
+        size_t global1 = N;
+        clEnqueueNDRangeKernel(queue, kernel1, 1, NULL, &global1, NULL, 0, NULL, NULL);
+        
+        // Kernel 2: compute_M2 (копирование)
+        clSetKernelArg(kernel2, 0, sizeof(cl_mem), &d_M2);
+        clSetKernelArg(kernel2, 1, sizeof(cl_mem), &d_Copy);
+        clSetKernelArg(kernel2, 2, sizeof(int), &N);
+        size_t global2 = N / 2;
+        clEnqueueNDRangeKernel(queue, kernel2, 1, NULL, &global2, NULL, 0, NULL, NULL);
+        
+        // Kernel 3: compute_M2_final
+        clSetKernelArg(kernel3, 0, sizeof(cl_mem), &d_M2);
+        clSetKernelArg(kernel3, 1, sizeof(cl_mem), &d_Copy);
+        clSetKernelArg(kernel3, 2, sizeof(int), &N);
+        clEnqueueNDRangeKernel(queue, kernel3, 1, NULL, &global2, NULL, 0, NULL, NULL);
+        
+        // Kernel 4: merge
+        clSetKernelArg(kernel4, 0, sizeof(cl_mem), &d_M1);
+        clSetKernelArg(kernel4, 1, sizeof(cl_mem), &d_M2);
+        clSetKernelArg(kernel4, 2, sizeof(int), &N);
+        clEnqueueNDRangeKernel(queue, kernel4, 1, NULL, &global2, NULL, 0, NULL, NULL);
+        
         clFinish(queue);
-
+        
+        // Чтение результата
         clEnqueueReadBuffer(queue, d_M2, CL_TRUE, 0,
-            sizeof(double) * (N / 2), M2, 0, NULL, NULL);
+        sizeof(double) * (N / 2), M2, 0, NULL, NULL);
 
         sort_pthread(M2, N / 2, threads);
         X = reduce(M2, N);
@@ -244,7 +306,7 @@ int main(int argc, char** argv) {
     pthread_join(pth, NULL);
 
     { const char *outfname = "auto_output_lab6.txt"; 
-        FILE *out = fopen(outfname, "w"); 
+        FILE *out = fopen(outfname, "a"); 
         if (out) { fprintf(out, "%d %d %.3f %.10f\n", N, threads, ms, X); 
             fclose(out); 
         } 
