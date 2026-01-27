@@ -231,11 +231,11 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-// Создаем kernel'ы
-cl_kernel kernel1 = clCreateKernel(program, "compute_M1", &err);
-cl_kernel kernel2 = clCreateKernel(program, "compute_M2", &err);
-cl_kernel kernel3 = clCreateKernel(program, "compute_M2_final", &err);
-cl_kernel kernel4 = clCreateKernel(program, "merge", &err);
+    // Создаем kernel'ы
+    cl_kernel kernel1 = clCreateKernel(program, "compute_M1", &err);
+    cl_kernel kernel2 = clCreateKernel(program, "compute_M2", &err);
+    cl_kernel kernel3 = clCreateKernel(program, "compute_M2_final", &err);
+    cl_kernel kernel4 = clCreateKernel(program, "merge", &err);
 
     /* ===== Buffers ===== */
 
@@ -258,43 +258,43 @@ cl_kernel kernel4 = clCreateKernel(program, "merge", &err);
     for (int it = 0; it < ITERATIONS; it++) {
         generate(M1, M2, N, it + 1);
 
-        // Запись данных
-    clEnqueueWriteBuffer(queue, d_M1, CL_TRUE, 0,
-        sizeof(double) * N, M1, 0, NULL, NULL);
-    clEnqueueWriteBuffer(queue, d_M2, CL_TRUE, 0,
-        sizeof(double) * (N / 2), M2, 0, NULL, NULL);
-    clEnqueueWriteBuffer(queue, d_Copy, CL_TRUE, 0,
-        sizeof(double) * (N / 2), copy, 0, NULL, NULL);
+            // Запись данных
+        clEnqueueWriteBuffer(queue, d_M1, CL_TRUE, 0,
+            sizeof(double) * N, M1, 0, NULL, NULL);
+        clEnqueueWriteBuffer(queue, d_M2, CL_TRUE, 0,
+            sizeof(double) * (N / 2), M2, 0, NULL, NULL);
+        clEnqueueWriteBuffer(queue, d_Copy, CL_TRUE, 0,
+            sizeof(double) * (N / 2), copy, 0, NULL, NULL);
 
-    // Kernel 1: compute_M1
-    clSetKernelArg(kernel1, 0, sizeof(cl_mem), &d_M1);
-    clSetKernelArg(kernel1, 1, sizeof(int), &N);
-    size_t global1 = N;
-    clEnqueueNDRangeKernel(queue, kernel1, 1, NULL, &global1, NULL, 0, NULL, NULL);
-    
-    // Kernel 2: compute_M2 (копирование)
-    clSetKernelArg(kernel2, 0, sizeof(cl_mem), &d_M2);
-    clSetKernelArg(kernel2, 1, sizeof(cl_mem), &d_Copy);
-    clSetKernelArg(kernel2, 2, sizeof(int), &N);
-    size_t global2 = N / 2;
-    clEnqueueNDRangeKernel(queue, kernel2, 1, NULL, &global2, NULL, 0, NULL, NULL);
-    
-    // Kernel 3: compute_M2_final
-    clSetKernelArg(kernel3, 0, sizeof(cl_mem), &d_M2);
-    clSetKernelArg(kernel3, 1, sizeof(cl_mem), &d_Copy);
-    clSetKernelArg(kernel3, 2, sizeof(int), &N);
-    clEnqueueNDRangeKernel(queue, kernel3, 1, NULL, &global2, NULL, 0, NULL, NULL);
-    
-    // Kernel 4: merge
-    clSetKernelArg(kernel4, 0, sizeof(cl_mem), &d_M1);
-    clSetKernelArg(kernel4, 1, sizeof(cl_mem), &d_M2);
-    clSetKernelArg(kernel4, 2, sizeof(int), &N);
-    clEnqueueNDRangeKernel(queue, kernel4, 1, NULL, &global2, NULL, 0, NULL, NULL);
-    
-    clFinish(queue);
-    
-    // Чтение результата
-    clEnqueueReadBuffer(queue, d_M2, CL_TRUE, 0,
+        // Kernel 1: compute_M1
+        clSetKernelArg(kernel1, 0, sizeof(cl_mem), &d_M1);
+        clSetKernelArg(kernel1, 1, sizeof(int), &N);
+        size_t global1 = N;
+        clEnqueueNDRangeKernel(queue, kernel1, 1, NULL, &global1, NULL, 0, NULL, NULL);
+        
+        // Kernel 2: compute_M2 (копирование)
+        clSetKernelArg(kernel2, 0, sizeof(cl_mem), &d_M2);
+        clSetKernelArg(kernel2, 1, sizeof(cl_mem), &d_Copy);
+        clSetKernelArg(kernel2, 2, sizeof(int), &N);
+        size_t global2 = N / 2;
+        clEnqueueNDRangeKernel(queue, kernel2, 1, NULL, &global2, NULL, 0, NULL, NULL);
+        
+        // Kernel 3: compute_M2_final
+        clSetKernelArg(kernel3, 0, sizeof(cl_mem), &d_M2);
+        clSetKernelArg(kernel3, 1, sizeof(cl_mem), &d_Copy);
+        clSetKernelArg(kernel3, 2, sizeof(int), &N);
+        clEnqueueNDRangeKernel(queue, kernel3, 1, NULL, &global2, NULL, 0, NULL, NULL);
+        
+        // Kernel 4: merge
+        clSetKernelArg(kernel4, 0, sizeof(cl_mem), &d_M1);
+        clSetKernelArg(kernel4, 1, sizeof(cl_mem), &d_M2);
+        clSetKernelArg(kernel4, 2, sizeof(int), &N);
+        clEnqueueNDRangeKernel(queue, kernel4, 1, NULL, &global2, NULL, 0, NULL, NULL);
+        
+        clFinish(queue);
+        
+        // Чтение результата
+        clEnqueueReadBuffer(queue, d_M2, CL_TRUE, 0,
         sizeof(double) * (N / 2), M2, 0, NULL, NULL);
 
         sort_pthread(M2, N / 2, threads);
